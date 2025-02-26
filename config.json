@@ -1,0 +1,5 @@
+{
+    "client_id": "YK13943",
+    "secret_key": "N23FCL8SAZ",
+    "redirect_uri": "http://localhost:5000/auth"
+}
