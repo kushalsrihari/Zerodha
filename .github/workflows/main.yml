@@ -1,20 +1,38 @@
-name: Python CI
+name: Fyers Trading
 
-on: [push]
+on:
+  workflow_dispatch:
+    inputs:
+      total:
+        description: 'Total investment (INR)'
+        required: true
+      stocks:
+        description: 'List of stocks (comma-separated, e.g., NSE:TATAMOTORS-EQ,NSE:ITC-EQ)'
+        required: true
+      target:
+        description: 'Target percentage'
+        required: true
+      stoploss:
+        description: 'Stop-loss percentage'
+        required: true
+      side:
+        description: 'Buy or Sell'
+        required: true
+      token:
+        description: 'Fyers access token'
+        required: true
 
 jobs:
-  build:
+  trade:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install fyers_api
-    - name: Lint
-      run: |
-        pylint main.py
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install fyers-apiv3
+      - name: Run trading script
+        run: python trade.py --total ${{ inputs.total }} --stocks "${{ inputs.stocks }}" --target ${{ inputs.target }} --stoploss ${{ inputs.stoploss }} --side ${{ inputs.side }} --token ${{ inputs.token }}
