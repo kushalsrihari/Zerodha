@@ -1,3 +1,13 @@
+name: Run Trading App
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
   run-app:
     runs-on: ubuntu-latest
@@ -21,6 +31,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install fyers-apiv3
 
-      - name: Run the app
+      - name: Run the app (syntax check)
         run: |
-          python trading_app.py  # Adjust this based on your app's requirements
+          python trading_app.py --version
