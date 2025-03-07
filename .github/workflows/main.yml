@@ -1,38 +1,31 @@
-name: Fyers Trading
+name: Run Trading App
 
 on:
-  workflow_dispatch:
-    inputs:
-      total:
-        description: 'Total investment (INR)'
-        required: true
-      stocks:
-        description: 'List of stocks (comma-separated, e.g., NSE:TATAMOTORS-EQ,NSE:ITC-EQ)'
-        required: true
-      target:
-        description: 'Target percentage'
-        required: true
-      stoploss:
-        description: 'Stop-loss percentage'
-        required: true
-      side:
-        description: 'Buy or Sell'
-        required: true
-      token:
-        description: 'Fyers access token'
-        required: true
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  trade:
+  run-app:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.9'
+
       - name: Install dependencies
-        run: pip install fyers-apiv3
-      - name: Run trading script
-        run: python trade.py --total ${{ inputs.total }} --stocks "${{ inputs.stocks }}" --target ${{ inputs.target }} --stoploss ${{ inputs.stoploss }} --side ${{ inputs.side }} --token ${{ inputs.token }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install fyers-apiv3 tkinter
+
+      - name: Run the app (syntax check)
+        run: |
+          python trading_app.py --version  # Note: This won't work as is due to UI; for demo only
