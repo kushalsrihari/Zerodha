@@ -1,163 +1,155 @@
 import tkinter as tk
 from tkinter import messagebox
-import argparse
 from fyers_apiv3 import fyersModel
-import math
+import webbrowser
 
-# Function to place bracket orders
-def place_orders(total_investment, stocks, target_pct, stoploss_pct, side, access_token, app_id):
-    """
-    Place intraday bracket orders for the given stocks using Fyers API.
-    
-    Parameters:
-    - total_investment: Total amount to invest
-    - stocks: List of stock symbols
-    - target_pct: Target percentage
-    - stoploss_pct: Stop-loss percentage
-    - side: 'buy' or 'sell'
-    - access_token: Fyers API access token
-    - app_id: Fyers App ID
-    """
-    # Initialize Fyers API client
-    fyers = fyersModel.FyersModel(token=access_token, client_id=app_id)
-    
-    # Get current prices for the stocks
-    symbols = ','.join(stocks)
-    quotes = fyers.quotes({'symbols': symbols})
-    if quotes['s'] != 'ok':
-        raise Exception("Failed to fetch quotes: " + quotes.get('message', 'Unknown error'))
-    prices = {quote['v']['symbol']: quote['v']['lp'] for quote in quotes['d']}
-    
-    # Calculate investment per stock
-    num_stocks = len(stocks)
-    investment_per_stock = total_investment / num_stocks
-    
-    # Calculate quantity for each stock
-    quantities = {}
-    for stock in stocks:
-        if stock not in prices:
-            print(f"Price not found for {stock}, skipping.")
-            continue
-        price = prices[stock]
-        quantity = math.floor(investment_per_stock / price)
-        quantities[stock] = quantity
-    
-    # Calculate stop-loss and target prices based on buy/sell
-    if side == 'buy':
-        sl_multiplier = 1 - stoploss_pct / 100
-        target_multiplier = 1 + target_pct / 100
-    else:  # sell
-        sl_multiplier = 1 + stoploss_pct / 100
-        target_multiplier = 1 - target_pct / 100
-    
-    # Place bracket orders
-    for stock in stocks:
-        quantity = quantities.get(stock, 0)
-        if quantity == 0:
-            print(f"Quantity for {stock} is zero, skipping.")
-            continue
-        current_price = prices[stock]
-        sl_price = current_price * sl_multiplier
-        target_price = current_price * target_multiplier
-        sl_price = round(sl_price, 2)
-        target_price = round(target_price, 2)
+# API credentials
+APP_ID = "RX6DYO4KLQ-100"
+SECRET_ID = "N23FCL8SAZ"
+REDIRECT_URI = "https://www.example.com"  # Replace with your actual redirect URI if set in Fyers app settings
+
+class TradingApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Fyers Algo Trading App")
         
-        order_data = {
-            'symbol': stock,
-            'qty': quantity,
-            'type': 2,  # Market order
-            'side': 1 if side == 'buy' else -1,
-            'productType': 'BO',  # Bracket Order
-            'limitPrice': 0,  # Market order
-            'stopPrice': 0,
-            'validity': 'DAY',  # Intraday
-            'stopLoss': sl_price,
-            'takeProfit': target_price,
-            'offlineOrder': 'False',
-            'disclosedQty': 0
-        }
-        response = fyers.place_order(order_data)
-        if response['s'] == 'ok':
-            print(f"Order placed successfully for {stock}: {response}")
-        else:
-            print(f"Failed to place order for {stock}: {response.get('message', 'Unknown error')}")
-
-# GUI function
-def create_gui(app_id):
-    """Create a Tkinter-based GUI for the trading app."""
-    root = tk.Tk()
-    root.title("Fyers Algo Trading")
+        # Login section
+        tk.Label(root, text="Fyers Login").pack()
+        tk.Button(root, text="Log in to Fyers", command=self.login).pack()
+        self.auth_code_entry = tk.Entry(root)
+        self.auth_code_entry.pack()
+        tk.Button(root, text="Submit Auth Code", command=self.submit_auth_code).pack()
+        
+        # Trading inputs
+        tk.Label(root, text="Total Investment Amount (INR)").pack()
+        self.investment_entry = tk.Entry(root)
+        self.investment_entry.pack()
+        
+        tk.Label(root, text="Stocks (comma-separated, e.g., NSE:INFY-EQ,NSE:RELIANCE-EQ)").pack()
+        self.stocks_entry = tk.Entry(root)
+        self.stocks_entry.pack()
+        
+        tk.Label(root, text="Target Percentage (%)").pack()
+        self.target_entry = tk.Entry(root)
+        self.target_entry.pack()
+        
+        tk.Label(root, text="Stop-Loss Percentage (%)").pack()
+        self.stop_loss_entry = tk.Entry(root)
+        self.stop_loss_entry.pack()
+        
+        self.action_var = tk.StringVar(value="buy")
+        tk.Radiobutton(root, text="Buy", variable=self.action_var, value="buy").pack()
+        tk.Radiobutton(root, text="Sell", variable=self.action_var, value="sell").pack()
+        
+        tk.Button(root, text="Place Orders", command=self.place_orders).pack()
+        
+        self.fyers = None
     
-    # Access token field
-    tk.Label(root, text="Access Token:").grid(row=0, column=0, pady=5)
-    token_entry = tk.Entry(root, width=50)
-    token_entry.grid(row=0, column=1, pady=5)
+    def login(self):
+        """Generate authentication URL and open it in the browser."""
+        session = fyersModel.SessionModel(
+            client_id=APP_ID,
+            secret_key=SECRET_ID,
+            redirect_uri=REDIRECT_URI,
+            response_type="code",
+            grant_type="authorization_code"
+        )
+        auth_url = session.generate_authcode()
+        webbrowser.open(auth_url)
     
-    # Total investment field
-    tk.Label(root, text="Total Investment (INR):").grid(row=1, column=0, pady=5)
-    total_investment_entry = tk.Entry(root)
-    total_investment_entry.grid(row=1, column=1, pady=5)
-    
-    # Stocks list field
-    tk.Label(root, text="Stocks (e.g., NSE:TATAMOTORS-EQ, one per line):").grid(row=2, column=0, pady=5)
-    stocks_text = tk.Text(root, height=10, width=30)
-    stocks_text.grid(row=2, column=1, pady=5)
-    
-    # Target percentage field
-    tk.Label(root, text="Target %:").grid(row=3, column=0, pady=5)
-    target_entry = tk.Entry(root)
-    target_entry.grid(row=3, column=1, pady=5)
-    
-    # Stop-loss percentage field
-    tk.Label(root, text="Stop-loss %:").grid(row=4, column=0, pady=5)
-    stoploss_entry = tk.Entry(root)
-    stoploss_entry.grid(row=4, column=1, pady=5)
-    
-    # Buy or Sell option
-    side_var = tk.StringVar(value="buy")
-    tk.Radiobutton(root, text="Buy", variable=side_var, value="buy").grid(row=5, column=0, pady=5)
-    tk.Radiobutton(root, text="Sell", variable=side_var, value="sell").grid(row=5, column=1, pady=5)
-    
-    # Submit button
-    def submit():
+    def submit_auth_code(self):
+        """Submit the authorization code to obtain access token."""
+        auth_code = self.auth_code_entry.get()
+        if not auth_code:
+            messagebox.showerror("Error", "Please enter the authorization code")
+            return
+        session = fyersModel.SessionModel(
+            client_id=APP_ID,
+            secret_key=SECRET_ID,
+            redirect_uri=REDIRECT_URI,
+            response_type="code",
+            grant_type="authorization_code"
+        )
+        session.set_token(auth_code)
         try:
-            access_token = token_entry.get().strip()
-            total_investment = float(total_investment_entry.get())
-            stocks = [s.strip() for s in stocks_text.get("1.0", tk.END).strip().split('\n') if s.strip()]
-            target_pct = float(target_entry.get())
-            stoploss_pct = float(stoploss_entry.get())
-            side = side_var.get()
-            if not access_token:
-                raise ValueError("Access token is required.")
-            if not stocks:
-                raise ValueError("At least one stock must be specified.")
-            place_orders(total_investment, stocks, target_pct, stoploss_pct, side, access_token, app_id)
-            messagebox.showinfo("Success", "Orders placed successfully!")
+            response = session.generate_token()
+            access_token = response["access_token"]
+            self.fyers = fyersModel.FyersModel(client_id=APP_ID, token=access_token, log_path="/logs")
+            messagebox.showinfo("Success", "Logged in successfully")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error", f"Login failed: {str(e)}")
     
-    tk.Button(root, text="Submit", command=submit).grid(row=6, column=0, columnspan=2, pady=10)
-    root.mainloop()
+    def place_orders(self):
+        """Process inputs and place bracket orders."""
+        if not self.fyers:
+            messagebox.showerror("Error", "Please log in first")
+            return
+        
+        try:
+            total_investment = float(self.investment_entry.get())
+            stocks = [s.strip() for s in self.stocks_entry.get().split(",")]
+            target_percentage = float(self.target_entry.get())
+            stop_loss_percentage = float(self.stop_loss_entry.get())
+            action = self.action_var.get()
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter numeric values where required.")
+            return
+        
+        if not stocks:
+            messagebox.showerror("Error", "Please enter at least one stock")
+            return
+        
+        amount_per_stock = total_investment / len(stocks)
+        
+        for stock in stocks:
+            # Fetch current price
+            quote_response = self.fyers.quotes({"symbols": stock})
+            if quote_response["s"] != "ok" or not quote_response["d"]:
+                messagebox.showerror("Error", f"Failed to get quote for {stock}")
+                continue
+            current_price = quote_response["d"][0]["v"]["lp"]
+            
+            # Calculate quantity
+            quantity = int(amount_per_stock / current_price)
+            if quantity == 0:
+                messagebox.showwarning("Warning", f"Insufficient amount for {stock}. Skipping.")
+                continue
+            
+            # Calculate stop-loss and target prices
+            if action == "buy":
+                stop_loss_price = round(current_price * (1 - stop_loss_percentage / 100), 2)
+                target_price = round(current_price * (1 + target_percentage / 100), 2)
+                side = 1  # Buy
+            else:  # sell (assuming short selling for bracket order)
+                stop_loss_price = round(current_price * (1 + stop_loss_percentage / 100), 2)
+                target_price = round(current_price * (1 - target_percentage / 100), 2)
+                side = -1  # Sell
+            
+            # Define bracket order parameters
+            order_data = {
+                "symbol": stock,
+                "qty": quantity,
+                "type": 2,  # Market order
+                "side": side,
+                "productType": "BO",
+                "limitPrice": 0,
+                "stopPrice": 0,
+                "validity": "DAY",
+                "stopLoss": abs(current_price - stop_loss_price),  # Difference in price
+                "takeProfit": abs(target_price - current_price),   # Difference in price
+                "offlineOrder": False
+            }
+            
+            try:
+                response = self.fyers.place_order(order_data)
+                if response["s"] == "ok":
+                    messagebox.showinfo("Success", f"Bracket order placed for {stock}")
+                else:
+                    messagebox.showerror("Error", f"Failed to place order for {stock}: {response['message']}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Order placement failed for {stock}: {str(e)}")
 
-# Main execution
-if __name__ == '__main__':
-    # Provided API credentials
-    APP_ID = "RX6DYO4KLQ-100"
-    
-    # Set up command-line argument parser
-    parser = argparse.ArgumentParser(description="Fyers Algo Trading App")
-    parser.add_argument('--total', type=float, help="Total investment amount")
-    parser.add_argument('--stocks', type=str, help="Comma-separated list of stocks")
-    parser.add_argument('--target', type=float, help="Target percentage")
-    parser.add_argument('--stoploss', type=float, help="Stop-loss percentage")
-    parser.add_argument('--side', type=str, choices=['buy', 'sell'], help="Buy or sell")
-    parser.add_argument('--token', type=str, help="Fyers access token")
-    args = parser.parse_args()
-    
-    # Check if CLI arguments are provided
-    if all([args.total, args.stocks, args.target, args.stoploss, args.side, args.token]):
-        stocks = [s.strip() for s in args.stocks.split(',') if s.strip()]
-        place_orders(args.total, stocks, args.target, args.stoploss, args.side, args.token, APP_ID)
-    else:
-        # Launch GUI if no arguments are provided
-        create_gui(APP_ID)
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = TradingApp(root)
+    root.mainloop()
